@@ -18,12 +18,26 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 #include <osm-gps-map.h>
+#include <gdk/gdkkeysyms.h>
 #include "hab_layer.h"
 
 static OsmGpsMapImage *g_last_image = NULL;
 static GdkPixbuf *g_balloon_blue = NULL;
 
 static OsmGpsMapTrack *balloon_track = NULL;
+
+static gboolean key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
+{
+	switch(event->keyval)
+	{
+	case 'q':
+	case 'Q':
+		gtk_main_quit();
+		return(TRUE);
+	}
+	
+	return(FALSE);
+}
 
 static gboolean delete_event(GtkWidget *widget, GdkEvent *event, gpointer data)
 {
@@ -80,6 +94,16 @@ int main(int argc, char *argv[])
 		NULL);
 	gtk_container_add(GTK_CONTAINER(mainwin), GTK_WIDGET(map));
 	gtk_widget_show(GTK_WIDGET(map));
+	
+	/* Setup key binding */
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_FULLSCREEN, GDK_F11);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_UP, GDK_Up);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_DOWN, GDK_Down);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_LEFT, GDK_Left);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_RIGHT, GDK_Right);
+	
+	/* Setup key press event */
+	g_signal_connect(mainwin, "key-press-event", G_CALLBACK(key_press_event), NULL);
 	
 	/* Setup the map OSD */
 	osd = g_object_new(OSM_TYPE_GPS_MAP_OSD,

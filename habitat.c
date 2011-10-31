@@ -386,13 +386,14 @@ static void couch_initial_callback(src_habitat_t *s, char *str, yajl_val node)
 {
 	const char *path[] = { 0, 0 };
 	yajl_val v;
+	int seq;
 	
 	/* Don't proceed if no JSON data present */
 	if(!node) return;
 	
 	path[0] = "update_seq";
 	v = yajl_tree_get(node, path, yajl_t_number);
-	if(v) s->seq = YAJL_GET_INTEGER(v);
+	if(v) seq = YAJL_GET_INTEGER(v);
 	else
 	{
 		fprintf(stderr, "No update_seq found in response from server\n");
@@ -410,7 +411,11 @@ static void couch_initial_callback(src_habitat_t *s, char *str, yajl_val node)
 	
 	fprintf(stderr, "Connected to %s\n", s->url);
 	fprintf(stderr, "db_name: %s\n", s->db_name);
-	fprintf(stderr, "update_seq: %i\n", s->seq);
+	fprintf(stderr, "update_seq: %i\n", seq);
+	
+	/* Resume from the previous point if one is set */
+	if(s->seq > 0) fprintf(stderr, "Resuming from update_seq: %i\n", s->seq);
+	else s->seq = seq;
 	
 	/* Server seems good, begin monitoring changes */
 	open_couch_url(s, couch_changes_callback, "_changes?feed=continuous&since=%i&heartbeat=5000&include_docs=true", s->seq);
@@ -431,11 +436,24 @@ static void *habitat_thread(void *arg)
 	open_couch_url(s, couch_initial_callback, "");
 	
 	/* The main libcurl loop */
-	while(s->running)
+	while(!s->stopping)
 	{
-		r = libcurl_perform(s);
-		if(r != 0) break;
-		if(s->stopping) break;
+		/* The main libcurl loop */
+		while(s->running)
+		{
+			r = libcurl_perform(s);
+			if(r != 0) break;
+			if(s->stopping) break;
+		}
+		
+		if(!s->stopping) fprintf(stderr, "Disconnected from server. Reconnecting in 10 seconds...\n");
+		
+		/* Sleep for 10 seconds */
+		for(r = 0; r < 100 && !s->stopping; r++)
+			usleep(100000);
+		
+		/* Start a new connection to habitat */
+		if(!s->stopping) open_couch_url(s, couch_initial_callback, "");
 	}
 	
 	curl_multi_cleanup(s->cm);

@@ -19,12 +19,287 @@
 #include <gtk/gtk.h>
 #include <osm-gps-map.h>
 #include <gdk/gdkkeysyms.h>
+#include <curl/curl.h>
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include "habhound.h"
 #include "hab_layer.h"
+#include "habitat.h"
 
-static OsmGpsMapImage *g_last_image = NULL;
+static OsmGpsMap *map = NULL;
+
 static GdkPixbuf *g_balloon_blue = NULL;
+static GdkPixbuf *g_radio_green = NULL;
+static GdkPixbuf *g_car_red = NULL;
 
-static OsmGpsMapTrack *balloon_track = NULL;
+typedef struct {
+	hab_object_type_t type;
+	const char *callsign;
+	
+	GdkPixbuf *image;
+	double x_offset;
+	double y_offset;
+	
+	OsmGpsMapImage *icon;
+	OsmGpsMapTrack *track;
+	
+	OsmGpsMapTrack *horizon; /* Only for balloons at the moment */
+	
+	double latitude;
+	double longitude;
+	double altitude;
+	
+	time_t timestamp; /* Time last updated */
+} map_object_t;
+
+static map_object_t **map_objects = NULL;
+
+typedef struct {
+	char *callsign;
+	hab_object_type_t type;
+	double latitude;
+	double longitude;
+	double altitude;
+} obj_data_t;
+
+static map_object_t *find_map_object(const char *callsign)
+{
+	int i;
+	map_object_t *obj;
+	
+	if(map_objects == NULL) return(NULL);
+	for(i = 0; map_objects[i]; i++)
+	{
+		obj = map_objects[i];
+		if(strcmp(obj->callsign, callsign) == 0) return(obj);
+	}
+	
+	return(NULL);
+}
+
+static int new_map_object(map_object_t *obj)
+{
+	int i;
+	void *t;
+	
+	if(map_objects == NULL)
+	{
+		map_objects = calloc(2, sizeof(map_object_t *));
+		map_objects[0] = obj;
+		map_objects[1] = NULL;
+		return(0);
+	}
+	
+	/* Count the number of items */
+	for(i = 0; map_objects[i]; i++);
+	
+	t = realloc(map_objects, sizeof(map_object_t *) * (i + 2));
+	if(!t) return(-1); /* Out of memory! */
+	
+	map_objects = t;
+	map_objects[i++] = obj;
+	map_objects[i] = NULL;
+	
+	return(i);
+}
+
+/* horizon calculations */
+float calculate_distance_to_horizon(float altitude)
+{
+	return(sqrt(2 * 6378137.0 * altitude));
+}
+
+OsmGpsMapPoint *calculate_point_at_horizon(OsmGpsMapPoint *dst, OsmGpsMapPoint *src, float bearing, float distance)
+{
+	float lat1, lng1;
+	float lat2, lng2;
+	float d = distance / 6378137.0; /* Average radius of the earth */
+	
+	osm_gps_map_point_get_radians(src, &lat1, &lng1);
+	
+	/* Formula from http://www.movable-type.co.uk/scripts/latlong.html */
+	
+	lat2 = asin(sin(lat1) * cos(d) + cos(lat1) * sin(d) * cos(bearing));
+	lng2 = lng1 + atan2(sin(bearing) * sin(d) * cos(lat1), cos(d) - sin(lat1) * sin(lat2));
+	
+	osm_gps_map_point_set_radians(dst, lat2, lng2);
+	
+	return(dst);
+}
+
+const char *habhound_object_type_name(hab_object_type_t type)
+{
+	switch(type)
+	{
+	case HAB_PAYLOAD: return("payload");
+	case HAB_LISTENER: return("listener");
+	case HAB_CHASE: return("chase");
+	}
+	
+	return("unknown");
+}
+
+static gboolean cb_habhound_plot_object(obj_data_t *data)
+{
+	map_object_t *obj;
+	OsmGpsMapPoint coord;
+	
+	fprintf(stderr, "%s %s at %f,%f altitude %.2f\n",
+		habhound_object_type_name(data->type), data->callsign,
+		data->latitude, data->longitude, data->altitude);
+	
+	/* Ignore 0,0 coordinates */
+	if(data->latitude == 0 && data->longitude == 0)
+	{
+		free(data->callsign);
+		free(data);
+		return(FALSE);
+	}
+	
+	/* Is this a known object? */
+	obj = find_map_object(data->callsign);
+	if(!obj)
+	{
+		obj = calloc(sizeof(map_object_t), 1);
+		if(!obj)
+		{
+			free(data->callsign);
+			free(data);
+			return(FALSE); /* Out of memory! */
+		}
+		
+		obj->type = data->type;
+		obj->callsign = data->callsign;
+		switch(obj->type)
+		{
+		case HAB_PAYLOAD:
+			obj->image = g_balloon_blue;
+			obj->x_offset = 0.5;
+			obj->y_offset = 0.95;
+			obj->track = osm_gps_map_track_new();
+			osm_gps_map_track_add(map, obj->track);
+			break;
+		case HAB_LISTENER:
+			obj->image = g_radio_green;
+			obj->x_offset = 0.5;
+			obj->y_offset = 0.9;
+			obj->track = NULL;
+			break;
+		case HAB_CHASE:
+			obj->image = g_car_red;
+			obj->x_offset = 0.5;
+			obj->y_offset = 0.5;
+			obj->track = NULL;
+			break;
+		}
+		
+		obj->horizon = NULL;
+		
+		obj->icon = osm_gps_map_image_add_with_alignment(
+	                map, data->latitude, data->longitude, obj->image,
+	                obj->x_offset, obj->y_offset);
+		
+		new_map_object(obj);
+	}
+	else
+	{
+		free(data->callsign); /* Don't need this */
+		
+		/* Has the data changed from the last time? */
+		if((obj->latitude == data->latitude) ||
+		   (obj->longitude == data->longitude) ||
+		   (obj->altitude  == data->altitude))
+		{
+			/* Nothing has changed, ignore data */
+			free(data);
+			return(FALSE);
+		}
+	}
+	
+	obj->latitude  = data->latitude;
+	obj->longitude = data->longitude;
+	obj->altitude  = data->altitude;
+	
+	if(strcmp(obj->callsign, "2I0VIM") == 0) obj->altitude = 80.0;
+	
+	osm_gps_map_point_set_degrees(&coord, obj->latitude, obj->longitude);
+	g_object_set(G_OBJECT(obj->icon), "point", &coord, NULL);
+	if(obj->track) osm_gps_map_track_add_point(obj->track, &coord);
+	
+	/* Draw payload horizon circle */
+	if(obj->type == HAB_PAYLOAD || obj->altitude > 0)
+	{
+		OsmGpsMapPoint p;
+		int i;
+		float b, s;
+		float d; /* 1km */
+		GdkColor c;
+		
+		d = calculate_distance_to_horizon(obj->altitude);
+		
+		if(obj->horizon)
+		{
+			osm_gps_map_track_remove(map, obj->horizon);
+			g_object_unref(G_OBJECT(obj->horizon));
+		}
+		obj->horizon = osm_gps_map_track_new();
+		
+		for(i = 0; i <= 100; i++)
+		{
+			b = M_PI * 2.0 / 100.0 * (float) i;
+			calculate_point_at_horizon(&p, &coord, b, d);
+			osm_gps_map_track_add_point(obj->horizon, &p);
+		}
+		
+		gdk_color_parse("#0000FF", &c);
+		d = 0.5;
+		s = 2.0;
+		g_object_set(G_OBJECT(obj->horizon),
+			"alpha", d,
+			"color", &c,
+			"line-width", s,
+			NULL);
+		
+		osm_gps_map_track_add(map, obj->horizon);
+	}
+	else if(obj->type == HAB_PAYLOAD || obj->altitude <= 0)
+	{
+		/* Remove horizon if payload is on the ground */
+		if(obj->horizon)
+		{
+			osm_gps_map_track_remove(map, obj->horizon);
+			g_object_unref(G_OBJECT(obj->horizon));
+			obj->horizon = NULL;
+		}
+	}
+	
+	free(data);
+	
+	return(FALSE);
+}
+
+void habhound_plot_object(const char *callsign, hab_object_type_t type,
+	double latitude, double longitude, double altitude)
+{
+	obj_data_t *obj = calloc(sizeof(obj_data_t), 1);
+	if(!obj) return;
+	
+	obj->callsign  = strdup(callsign);
+	obj->type      = type;
+	obj->latitude  = latitude;
+	obj->longitude = longitude;
+	obj->altitude  = altitude;
+	
+	g_idle_add((GSourceFunc) cb_habhound_plot_object, obj);
+}
+
+void habhound_delete_object(const char *callsign)
+{
+	return;
+}
+
+/* internal */
 
 static gboolean key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
@@ -49,37 +324,26 @@ static void destroy(GtkWidget *widget, gpointer data)
 	gtk_main_quit();
 }
 
-int load_test_track()
-{
-	FILE *f;
-	char s[100];
-	OsmGpsMapPoint coord;
-	float lat, lng;
-	
-	f = fopen("xaben1-track.txt", "rt");
-	while(fgets(s, 100, f))
-	{
-		sscanf(s, "%f,%f", &lat, &lng);
-		osm_gps_map_point_set_degrees(&coord, lat, lng);
-		osm_gps_map_track_add_point(balloon_track, &coord);
-	}
-	fclose(f);
-	
-	return(0);
-}
-
 int main(int argc, char *argv[])
 {
 	GtkWidget *mainwin;
-	OsmGpsMap *map;
+	//OsmGpsMap *map;
 	OsmGpsMapLayer *osd;
+	src_habitat_t *src_habitat;
 	
+	/* Initialise libraries */
+	curl_global_init(CURL_GLOBAL_ALL);
+	
+	g_thread_init(NULL);
+	gdk_threads_init();
+	gdk_threads_enter();
+ 	
 	gtk_init(&argc, &argv);
 	
 	/* Create the main window */
 	mainwin = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(mainwin), "habhound - High Altitude Balloon tracking");
-	gtk_window_set_default_size(GTK_WINDOW(mainwin), 600, 400);
+	gtk_window_set_default_size(GTK_WINDOW(mainwin), 600, 600);
 	gtk_window_set_position(GTK_WINDOW(mainwin), GTK_WIN_POS_CENTER);
 	g_signal_connect(mainwin, "delete-event", G_CALLBACK(delete_event), NULL);
 	g_signal_connect(mainwin, "destroy", G_CALLBACK(destroy), NULL);
@@ -105,6 +369,10 @@ int main(int argc, char *argv[])
 	/* Setup key press event */
 	g_signal_connect(mainwin, "key-press-event", G_CALLBACK(key_press_event), NULL);
 	
+	/* Setup initial map view, center of the British Isles */
+	/* This will eventually be configurable */
+	osm_gps_map_set_center_and_zoom(map, 54.5, -4.5, 5);
+	
 	/* Setup the map OSD */
 	osd = g_object_new(OSM_TYPE_GPS_MAP_OSD,
 		"show-scale", TRUE,
@@ -119,27 +387,31 @@ int main(int argc, char *argv[])
 	osm_gps_map_layer_add(map, osd);
 	g_object_unref(G_OBJECT(osd));
 	
-	/* Setup the HAB OSD */
-	osd = g_object_new(HAB_LAYER_TYPE, NULL);
-	osm_gps_map_layer_add(map, osd);
-	g_object_unref(G_OBJECT(osd));
+	/* Setup the HAB OSD -- doesn't work yet :) */
+	//osd = g_object_new(HAB_LAYER_TYPE,
+	//	"callsign", "APEX",
+	//	NULL);
+	//osm_gps_map_layer_add(map, osd);
+	//g_object_unref(G_OBJECT(osd));
 	
 	/* Plot a point on the map */
 	g_balloon_blue = gdk_pixbuf_new_from_file("icons/balloon-blue.png", NULL);
-	g_last_image = osm_gps_map_image_add_with_alignment(
-		map, 52.23715, 1.22074, g_balloon_blue, 0.5, 0.9);
+	g_radio_green  = gdk_pixbuf_new_from_file("icons/antenna-green.png", NULL);
+	g_car_red      = gdk_pixbuf_new_from_file("icons/car-red.png", NULL);
 	
-	/* Add in a test track */
-	balloon_track = osm_gps_map_track_new();
-	osm_gps_map_track_add(map, balloon_track);
+	/* Start the habitat handler */
+	src_habitat = src_habitat_start("http://habitat.habhub.org/habitat");
 	
-	/* Load track */
-	load_test_track();
-	
-	/* Finally show the window */
+	/* Finally show the lot */
 	gtk_widget_show(mainwin);
 	
 	gtk_main();
+	
+	/* Stop the habitat handler */
+	src_habitat_stop(src_habitat);
+	
+	/* Done */
+	gdk_threads_leave();
 	
 	return(0);
 }

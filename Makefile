@@ -15,8 +15,16 @@ LDFLAGS+=`pkg-config --libs gtk+-2.0`
 CFLAGS+=`pkg-config --cflags osmgpsmap`
 LDFLAGS+=`pkg-config --libs osmgpsmap`
 
-habhound: habhound.o hab_layer.o
-	$(CC) $(LDFLAGS) habhound.o hab_layer.o -o habhound
+# libcurl
+CFLAGS+=`pkg-config --cflags libcurl`
+LDFLAGS+=`pkg-config --libs libcurl`
+
+# yajl
+#CFLAGS+=`pkg-config --cflags yajl`
+LDFLAGS+="-lyajl"
+
+habhound: habhound.o hab_layer.o habitat.o
+	$(CC) $(LDFLAGS) habhound.o hab_layer.o habitat.o -o habhound
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@

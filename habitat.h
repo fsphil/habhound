@@ -15,37 +15,32 @@
 /* You should have received a copy of the GNU General Public License      */
 /* along with this program. If not, see <http://www.gnu.org/licenses/>.   */
 
-#ifndef __HAB_LAYER_H__
-#define __HAB_LAYER_H__
+#ifndef __HABITAT_H__
+#define __HABITAT_H__
 
-#include <glib-object.h>
-
-G_BEGIN_DECLS
-
-#define HAB_LAYER_TYPE           (hab_layer_get_type())
-#define HAB_LAYER(obj)           (G_TYPE_CHECK_INSTANCE_CAST((obj), HAB_LAYER_TYPE, hab_layer))
-#define HAB_LAYER_CLASS(obj)     (G_TYPE_CHECK_CLASS_CAST((obj), HAB_LAYER, hab_layerClass))
-#define IS_HAB_LAYER(obj)        (G_TYPE_CHECK_INSTANCE_TYPE((obj), HAB_LAYER_TYPE))
-#define IS_HAB_LAYER_CLASS(obj)  (G_TYPE_CHECK_CLASS_TYPE((obj), HAB_LAYER_TYPE))
-#define HAB_LAYER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), HAB_LAYER, hab_layerClass))
-
-typedef struct _hab_layer hab_layer;
-typedef struct _hab_layer_private hab_layer_private;
-struct _hab_layer
+typedef struct
 {
-	GObject parent;
-	hab_layer_private *priv;
-};
+	/* Base URL of the CouchDB server */
+	char *url;
+	
+	/* libcurl mutli interface handle */
+	CURLM *cm;
+	
+	/* Number of curl easy interfaces running */
+	int running;
+	
+	/* Server details */
+	char *db_name; /* Database name */
+	int seq; /* Sequence number */
+	
+	/* Thread stuffs */
+	pthread_t t;
+	char stopping;
+	
+} src_habitat_t;
 
-typedef struct _hab_layer_class hab_layerClass;
-struct _hab_layer_class
-{
-	GObjectClass parent_class;
-};
+extern src_habitat_t *src_habitat_start(char *url);
+extern void src_habitat_stop();
 
-GType hab_layer_get_type(void);
-hab_layer *hab_layer_new(void);
+#endif /* __HABITAT_H__ */
 
-G_END_DECLS
-
-#endif /* __HAB_LAYER_H__ */

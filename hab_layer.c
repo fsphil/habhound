@@ -22,12 +22,17 @@
 
 static void hab_layer_iface_init(OsmGpsMapLayerIface *iface);
 
+enum {
+	P_CALLSIGN = 1,
+};
+
 G_DEFINE_TYPE_WITH_CODE(hab_layer, hab_layer, G_TYPE_OBJECT,
 	G_IMPLEMENT_INTERFACE(OSM_TYPE_GPS_MAP_LAYER, hab_layer_iface_init));
 
 struct _hab_layer_private
 {
 	cairo_surface_t *surface;
+	char *callsign;
 };
 
 static void     hab_layer_render (OsmGpsMapLayer *osd, OsmGpsMap *map);
@@ -44,6 +49,40 @@ static void hab_layer_iface_init(OsmGpsMapLayerIface *iface)
 	iface->draw         = hab_layer_draw;
 	iface->busy         = hab_layer_busy;
 	iface->button_press = hab_layer_press;
+}
+
+static void hab_layer_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec)
+{
+	g_return_if_fail(IS_HAB_LAYER(object));
+	hab_layer *o = HAB_LAYER(object);
+	hab_layer_private *priv = o->priv;
+	
+	switch(prop_id)
+	{
+	case P_CALLSIGN:
+		priv->callsign = g_value_dup_string(value);
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+		break;
+	}
+}
+
+static void hab_layer_get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
+{
+	g_return_if_fail(IS_HAB_LAYER(object));
+	hab_layer *o = HAB_LAYER(object);
+	hab_layer_private *priv = o->priv;
+	
+	switch(prop_id)
+	{
+	case P_CALLSIGN:
+		g_value_set_string(value, priv->callsign);
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+		break;
+	}
 }
 
 static GObject *hab_layer_constructor(GType gtype, guint n_properties, GObjectConstructParam *properties)
@@ -65,6 +104,7 @@ static void hab_layer_finalize(GObject *object)
 	hab_layer_private *priv = HAB_LAYER(object)->priv;
 	
 	if(priv->surface) cairo_surface_destroy(priv->surface);
+	if(priv->callsign) g_free(priv->callsign);
 	
 	G_OBJECT_CLASS(hab_layer_parent_class)->finalize(object);
 }
@@ -75,10 +115,17 @@ static void hab_layer_class_init(hab_layerClass *klass)
 	
 	g_type_class_add_private(klass, sizeof(hab_layer_private));
 	
-	//object_class->get_property = hab_layer_get_property;
-	//object_class->set_property = hab_layer_set_property;
+	object_class->get_property = hab_layer_get_property;
+	object_class->set_property = hab_layer_set_property;
 	object_class->constructor  = hab_layer_constructor;
 	object_class->finalize     = hab_layer_finalize;
+	
+	g_object_class_install_property(
+		object_class, P_CALLSIGN,
+		g_param_spec_string("callsign", "callsign",
+			"Just testing", "default",
+			G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY)
+	);
 }
 
 static void hab_layer_init(hab_layer *self)
@@ -113,7 +160,7 @@ static void hab_layer_draw(OsmGpsMapLayer *osd, OsmGpsMap *map, GdkDrawable *dra
         scale_draw(self, &allocation, cr);
 	
 	cairo_destroy(cr);
-}
+}	
 
 static gboolean hab_layer_busy(OsmGpsMapLayer *osd)
 {
@@ -168,7 +215,7 @@ static void scale_render(hab_layer *self, OsmGpsMap *map)
 	cairo_set_font_size(cr, 12);
 	
 	cairo_move_to(cr, 5, 14 /* - te.height / 2 - te.y_bearing*/);
-	cairo_show_text(cr, "XABEN1");
+	cairo_show_text(cr, priv->callsign);
 	
 	cairo_select_font_face(cr, "Sans",
 		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
@@ -192,9 +239,9 @@ static void scale_render(hab_layer *self, OsmGpsMap *map)
 	cairo_move_to(cr, 5, 14 + 66);
 	cairo_show_text(cr, "Receivers: G8KHW");
 	
-	cairo_move_to(cr, 5, 14 + 85);
-	cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
-	cairo_show_text(cr, "Pan To | Path | Follow");
+	//cairo_move_to(cr, 5, 14 + 85);
+	//cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
+	//cairo_show_text(cr, "Pan To | Path | Follow");
 	
 	cairo_destroy(cr);
 }

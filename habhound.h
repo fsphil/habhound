@@ -15,37 +15,24 @@
 /* You should have received a copy of the GNU General Public License      */
 /* along with this program. If not, see <http://www.gnu.org/licenses/>.   */
 
-#ifndef __HAB_LAYER_H__
-#define __HAB_LAYER_H__
+#ifndef __HABHOUND_H__
+#define __HABHOUND_H__
 
-#include <glib-object.h>
+typedef enum {
+	HAB_PAYLOAD,
+	HAB_LISTENER,
+	HAB_CHASE,
+} hab_object_type_t;
 
-G_BEGIN_DECLS
+extern void habhound_plot_object(
+	const char *callsign,
+	hab_object_type_t type,
+	double latitude,
+	double longitude,
+	double altitude
+);
 
-#define HAB_LAYER_TYPE           (hab_layer_get_type())
-#define HAB_LAYER(obj)           (G_TYPE_CHECK_INSTANCE_CAST((obj), HAB_LAYER_TYPE, hab_layer))
-#define HAB_LAYER_CLASS(obj)     (G_TYPE_CHECK_CLASS_CAST((obj), HAB_LAYER, hab_layerClass))
-#define IS_HAB_LAYER(obj)        (G_TYPE_CHECK_INSTANCE_TYPE((obj), HAB_LAYER_TYPE))
-#define IS_HAB_LAYER_CLASS(obj)  (G_TYPE_CHECK_CLASS_TYPE((obj), HAB_LAYER_TYPE))
-#define HAB_LAYER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), HAB_LAYER, hab_layerClass))
+extern void habhound_delete_object(const char *callsign);
 
-typedef struct _hab_layer hab_layer;
-typedef struct _hab_layer_private hab_layer_private;
-struct _hab_layer
-{
-	GObject parent;
-	hab_layer_private *priv;
-};
+#endif /* __HABHOUND_H__ */
 
-typedef struct _hab_layer_class hab_layerClass;
-struct _hab_layer_class
-{
-	GObjectClass parent_class;
-};
-
-GType hab_layer_get_type(void);
-hab_layer *hab_layer_new(void);
-
-G_END_DECLS
-
-#endif /* __HAB_LAYER_H__ */

@@ -24,7 +24,7 @@ LDFLAGS+=`pkg-config --libs libcurl`
 LDFLAGS+="-lyajl"
 
 habhound: habhound.o hab_layer.o habitat.o
-	$(CC) $(LDFLAGS) habhound.o hab_layer.o habitat.o -o habhound
+	$(CC) -o habhound habhound.o hab_layer.o habitat.o $(LDFLAGS)
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@

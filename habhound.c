@@ -63,7 +63,7 @@ typedef struct {
 	double altitude;
 } obj_data_t;
 
-static map_object_t *find_map_object(const char *callsign)
+static map_object_t *find_map_object(hab_object_type_t type, const char *callsign)
 {
 	int i;
 	map_object_t *obj;
@@ -72,7 +72,8 @@ static map_object_t *find_map_object(const char *callsign)
 	for(i = 0; map_objects[i]; i++)
 	{
 		obj = map_objects[i];
-		if(strcmp(obj->callsign, callsign) == 0) return(obj);
+		if(obj->type == type &&
+		   strcmp(obj->callsign, callsign) == 0) return(obj);
 	}
 	
 	return(NULL);
@@ -158,7 +159,7 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 	}
 	
 	/* Is this a known object? */
-	obj = find_map_object(data->callsign);
+	obj = find_map_object(obj->type, data->callsign);
 	if(!obj)
 	{
 		obj = calloc(sizeof(map_object_t), 1);

@@ -198,8 +198,8 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		obj->horizon = NULL;
 		
 		obj->icon = osm_gps_map_image_add_with_alignment(
-	                map, data->latitude, data->longitude, obj->image,
-	                obj->x_offset, obj->y_offset);
+			map, data->latitude, data->longitude, obj->image,
+			obj->x_offset, obj->y_offset);
 		
 		new_map_object(obj);
 	}

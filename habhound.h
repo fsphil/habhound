@@ -18,6 +18,8 @@
 #ifndef __HABHOUND_H__
 #define __HABHOUND_H__
 
+#include <cairo.h>
+
 typedef enum {
 	HAB_PAYLOAD,
 	HAB_LISTENER,
@@ -32,6 +34,9 @@ extern void habhound_plot_object(
 	double altitude
 );
 
+extern int habhound_get_infobox(int index, cairo_surface_t **surface);
+extern void habhound_plot_object(const char *callsign, hab_object_type_t type,
+   double latitude, double longitude, double altitude);
 extern void habhound_delete_object(const char *callsign);
 
 #endif /* __HABHOUND_H__ */

@@ -46,9 +46,13 @@ typedef struct {
 	
 	OsmGpsMapTrack *horizon; /* Only for balloons at the moment */
 	
+	cairo_surface_t *infobox; /* Also only for balloons */
+	
 	double latitude;
 	double longitude;
 	double altitude;
+	
+	double max_altitude;
 	
 	time_t timestamp; /* Time last updated */
 } map_object_t;
@@ -141,6 +145,73 @@ const char *habhound_object_type_name(hab_object_type_t type)
 	return("unknown");
 }
 
+static void render_infobox(map_object_t *obj)
+{
+	cairo_t *cr;
+	char msg[100];
+	
+	/* Create the surface */
+	if(!obj->infobox) obj->infobox = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 220, 104);
+	
+	/* first fill with transparency */
+	cr = cairo_create(obj->infobox);
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+	cairo_paint(cr);
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+	
+	/* Draw the outline box */
+	cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+	cairo_set_line_width(cr, 2);
+	cairo_rectangle(cr, 1, 1, 218, 102);
+	cairo_stroke_preserve(cr);
+	
+	/* Fill in box with semi-transparent white */
+	cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.85);
+	cairo_fill(cr);
+	
+	/* Draw the balloon icon */
+	if(obj->image)
+	{
+		gdk_cairo_set_source_pixbuf(cr, obj->image, 166, 5);
+		cairo_paint(cr);
+	}
+	
+	/* Draw the payload title */
+	cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+	cairo_select_font_face(cr, "Sans",
+		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+	cairo_set_font_size(cr, 12);
+	
+	cairo_move_to(cr, 5, 14 /* - te.height / 2 - te.y_bearing*/);
+	cairo_show_text(cr, obj->callsign);
+	
+	/* Set the font for the rest of the data */
+	cairo_select_font_face(cr, "Sans",
+		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+	cairo_set_font_size(cr, 10);
+	
+	/* Print telemetry time */
+	cairo_move_to(cr, 5, 14 + 11);
+	cairo_show_text(cr, "Time: 0000-00-00 00:00:00");
+	
+	/* Print position */
+	cairo_move_to(cr, 5, 14 + 22);
+	snprintf(msg, 100, "Position: %.5f, %.5f", obj->latitude, obj->longitude);
+	cairo_show_text(cr, msg);
+	
+	/* Altitude */
+	cairo_move_to(cr, 5, 14 + 33);
+	snprintf(msg, 100, "Altitude: %i m", (int) obj->altitude);
+	cairo_show_text(cr, msg);
+	
+	/* Max altitude */
+	cairo_move_to(cr, 5, 14 + 44);
+	snprintf(msg, 100, "Max. Altitude: %i m", (int) obj->max_altitude);
+	cairo_show_text(cr, msg);
+	
+	cairo_destroy(cr);
+}
+
 static gboolean cb_habhound_plot_object(obj_data_t *data)
 {
 	map_object_t *obj;
@@ -229,6 +300,8 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 	obj->latitude  = data->latitude;
 	obj->longitude = data->longitude;
 	obj->altitude  = data->altitude;
+	if(data->altitude > obj->max_altitude)
+		obj->max_altitude = data->altitude;
 	
 	if(strcmp(obj->callsign, "2I0VIM") == 0) obj->altitude = 80.0;
 	
@@ -283,9 +356,23 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		}
 	}
 	
+	/* Render the payload infobox */
+	if(obj->type == HAB_PAYLOAD) render_infobox(obj);
+	
 	free(data);
 	
 	return(FALSE);
+}
+
+/* Get a pointer to a map objects infobox */
+int habhound_get_infobox(int index, cairo_surface_t **surface)
+{
+	map_object_t *obj = get_map_object(index);
+	if(!obj) return(-1);
+	
+	*surface = obj->infobox;
+	
+	return(index);
 }
 
 void habhound_plot_object(const char *callsign, hab_object_type_t type,
@@ -396,12 +483,10 @@ int main(int argc, char *argv[])
 	osm_gps_map_layer_add(map, osd);
 	g_object_unref(G_OBJECT(osd));
 	
-	/* Setup the HAB OSD -- doesn't work yet :) */
-	//osd = g_object_new(HAB_LAYER_TYPE,
-	//	"callsign", "APEX",
-	//	NULL);
-	//osm_gps_map_layer_add(map, osd);
-	//g_object_unref(G_OBJECT(osd));
+	/* Setup the HAB OSD */
+	osd = g_object_new(HAB_LAYER_TYPE, NULL);
+	osm_gps_map_layer_add(map, osd);
+	g_object_unref(G_OBJECT(osd));
 	
 	/* Plot a point on the map */
 	g_balloon_blue = gdk_pixbuf_new_from_file("icons/balloon-blue.png", NULL);

@@ -53,6 +53,7 @@ typedef struct {
 	time_t timestamp; /* Time last updated */
 } map_object_t;
 
+static int map_objects_count = 0;
 static map_object_t **map_objects = NULL;
 
 typedef struct {
@@ -68,7 +69,10 @@ static map_object_t *find_map_object(hab_object_type_t type, const char *callsig
 	int i;
 	map_object_t *obj;
 	
-	if(map_objects == NULL) return(NULL);
+	/* No objects yet */
+	if(!map_objects) return(NULL);
+	
+	/* Loop until a match is found, or the end is reached */
 	for(i = 0; map_objects[i]; i++)
 	{
 		obj = map_objects[i];
@@ -76,33 +80,29 @@ static map_object_t *find_map_object(hab_object_type_t type, const char *callsig
 		   strcmp(obj->callsign, callsign) == 0) return(obj);
 	}
 	
+	/* No match was found */
 	return(NULL);
+}
+
+static map_object_t *get_map_object(int index)
+{
+	/* Return a map object by its index number */
+	if(index >= map_objects_count) return(NULL);
+	return(map_objects[index]);
 }
 
 static int new_map_object(map_object_t *obj)
 {
-	int i;
-	void *t;
-	
-	if(map_objects == NULL)
-	{
-		map_objects = calloc(2, sizeof(map_object_t *));
-		map_objects[0] = obj;
-		map_objects[1] = NULL;
-		return(0);
-	}
-	
-	/* Count the number of items */
-	for(i = 0; map_objects[i]; i++);
-	
-	t = realloc(map_objects, sizeof(map_object_t *) * (i + 2));
+	/* Reallocate the length of the array */
+	void *t = realloc(map_objects, sizeof(map_object_t *) * (map_objects_count + 2));
 	if(!t) return(-1); /* Out of memory! */
 	
+	/* Add the new item to the end */
 	map_objects = t;
-	map_objects[i++] = obj;
-	map_objects[i] = NULL;
+	map_objects[map_objects_count++] = obj;
+	map_objects[map_objects_count] = NULL;
 	
-	return(i);
+	return(map_objects_count);
 }
 
 /* horizon calculations */
@@ -170,6 +170,16 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 			return(FALSE); /* Out of memory! */
 		}
 		
+		/* Add the new object to the objects array */
+		if(new_map_object(obj) == -1)
+		{
+			/* Failed to add! */
+			free(obj);
+			free(data->callsign);
+			free(data);
+			return(FALSE);
+		}
+		
 		obj->type = data->type;
 		obj->callsign = data->callsign;
 		switch(obj->type)
@@ -200,8 +210,6 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		obj->icon = osm_gps_map_image_add_with_alignment(
 			map, data->latitude, data->longitude, obj->image,
 			obj->x_offset, obj->y_offset);
-		
-		new_map_object(obj);
 	}
 	else
 	{

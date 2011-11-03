@@ -159,7 +159,7 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 	}
 	
 	/* Is this a known object? */
-	obj = find_map_object(obj->type, data->callsign);
+	obj = find_map_object(data->type, data->callsign);
 	if(!obj)
 	{
 		obj = calloc(sizeof(map_object_t), 1);

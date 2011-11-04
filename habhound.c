@@ -225,7 +225,7 @@ static void render_mapimage(map_object_t *obj)
 	cairo_surface_destroy(surface);
 	
 	/* Adjust the size to fit both the icon and text */
-	if(extent.width > width) width = extent.width;
+	if(extent.width >= width) width = extent.width + 2;
 	height += extent.height + 2;
 	
 	obj->x_offset -= 0.5;

@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <math.h>
 #include "habhound.h"
 #include "hab_layer.h"
@@ -70,6 +71,58 @@ typedef struct {
 	double longitude;
 	double altitude;
 } obj_data_t;
+
+/* Taken from the GCC manual and cleaned up a bit. */
+char *vmake_message(const char *fmt, va_list ap)
+{
+	/* Start with 100 bytes. */
+	int n, size = 100;
+	char *p;
+	
+	p = (char *) malloc(size);
+	if(!p) return(NULL);
+	
+	while(1)
+	{
+		char *np;
+		va_list apc;
+		
+		/* Try to print in the allocated space. */
+		va_copy(apc, ap);
+		n = vsnprintf(p, size, fmt, apc);
+		
+		/* If that worked, return the string. */
+		if(n > -1 && n < size) return(p);
+		
+		/* Else try again with more space. */
+		if(n > -1) size = n + 1; /* gibc 2.1: exactly what is needed */
+		else size *= 2; /* glibc 2.0: twice the old size */
+		
+		np = (char *) realloc(p, size);
+		if(!np)
+		{
+			free(p);
+			return(NULL);
+		}
+		
+		p = np;
+	}
+	
+	free(p);
+	return(NULL);
+}
+
+char *sprintf_alloc(const char *format, ... )
+{
+	va_list ap;
+	char *msg;
+	
+	va_start(ap, format);
+	msg = vmake_message(format, ap);
+	va_end(ap);
+	
+	return(msg);
+}
 
 static map_object_t *find_map_object(hab_object_type_t type, const char *callsign)
 {
@@ -338,6 +391,13 @@ static void render_infobox(map_object_t *obj)
 	cairo_destroy(cr);
 }
 
+static gboolean cb_habhound_set_status(char *data)
+{
+	g_object_set(G_OBJECT(osd), "status", data, NULL);
+	osm_gps_map_scroll(map, 0, 0); /* <-- hacky way to re-render map */
+	return(FALSE);
+}
+
 static gboolean cb_habhound_plot_object(obj_data_t *data)
 {
 	map_object_t *obj;
@@ -494,7 +554,26 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 	return(FALSE);
 }
 
-/* Get a pointer to a map objects infobox */
+/* Set the status message */
+void habhound_set_status(char *message, ... )
+{
+	va_list ap;
+	char *s;
+	
+	if(!message) return;
+	
+	/* Create the full URL */
+	va_start(ap, message);
+	s = vmake_message(message, ap);
+	va_end(ap);
+	
+	if(!s) return;
+	
+	g_idle_add((GSourceFunc) cb_habhound_set_status, s);
+}
+
+/* Get a pointer to a map objects infobox. Used by the hab_layer
+ * object to retrieve the rendered infoboxes for each payload */
 int habhound_get_infobox(int index, cairo_surface_t **surface)
 {
 	map_object_t *obj = get_map_object(index);

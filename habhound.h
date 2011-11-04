@@ -19,12 +19,16 @@
 #define __HABHOUND_H__
 
 #include <cairo.h>
+#include <stdarg.h>
 
 typedef enum {
 	HAB_PAYLOAD,
 	HAB_LISTENER,
 	HAB_CHASE,
 } hab_object_type_t;
+
+extern char *vmake_message(const char *fmt, va_list ap);
+extern char *sprintf_alloc(const char *format, ... );
 
 extern void habhound_plot_object(
 	const char *callsign,
@@ -35,6 +39,7 @@ extern void habhound_plot_object(
 	double altitude
 );
 
+extern void habhound_set_status(char *format, ... );
 extern int habhound_get_infobox(int index, cairo_surface_t **surface);
 extern void habhound_delete_object(const char *callsign);
 

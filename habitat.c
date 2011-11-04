@@ -56,58 +56,6 @@ typedef struct {
 	
 } strbuf_t;
 
-/* Taken from the GCC manual and cleaned up a bit. */
-static char *vmake_message(const char *fmt, va_list ap)
-{
-	/* Start with 100 bytes. */
-	int n, size = 100;
-	char *p;
-	
-	p = (char *) malloc(size);
-	if(!p) return(NULL);
-	
-	while(1)
-	{
-		char *np;
-		va_list apc;
-		
-		/* Try to print in the allocated space. */
-		va_copy(apc, ap);
-		n = vsnprintf(p, size, fmt, apc);
-		
-		/* If that worked, return the string. */
-		if(n > -1 && n < size) return(p);
-		
-		/* Else try again with more space. */
-		if(n > -1) size = n + 1; /* gibc 2.1: exactly what is needed */
-		else size *= 2; /* glibc 2.0: twice the old size */
-		
-		np = (char *) realloc(p, size);
-		if(!np)
-		{
-			free(p);
-			return(NULL);
-		}
-		
-		p = np;
-	}
-	
-	free(p);
-	return(NULL);
-}
-
-static char *sprintf_alloc(const char *format, ... )
-{
-	va_list ap;
-	char *msg;
-	
-	va_start(ap, format);
-	msg = vmake_message(format, ap);
-	va_end(ap);
-	
-	return(msg);
-}
-
 size_t strbuf_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
 	strbuf_t *sb = userdata;
@@ -417,6 +365,8 @@ static void couch_initial_callback(src_habitat_t *s, char *str, yajl_val node)
 	if(s->seq > 0) fprintf(stderr, "Resuming from update_seq: %i\n", s->seq);
 	else s->seq = seq;
 	
+	habhound_set_status("Connected to %s", s->url);
+	
 	/* Server seems good, begin monitoring changes */
 	open_couch_url(s, couch_changes_callback, "_changes?feed=continuous&since=%i&heartbeat=5000&include_docs=true", s->seq);
 }
@@ -433,6 +383,7 @@ static void *habitat_thread(void *arg)
 	curl_multi_setopt(s->cm, CURLMOPT_PIPELINING, 1L);
 	
 	/* Open the initial connection to the database */
+	habhound_set_status("Connecting to server...");
 	open_couch_url(s, couch_initial_callback, "");
 	
 	/* The main libcurl loop */
@@ -446,7 +397,11 @@ static void *habitat_thread(void *arg)
 			if(s->stopping) break;
 		}
 		
-		if(!s->stopping) fprintf(stderr, "Disconnected from server. Reconnecting in 10 seconds...\n");
+		if(!s->stopping)
+		{
+			fprintf(stderr, "Disconnected from server. Reconnecting in 10 seconds...\n");
+			habhound_set_status("Disconnected from server. Reconnecting in 10 seconds...");
+		}
 		
 		/* Sleep for 10 seconds */
 		for(r = 0; r < 100 && !s->stopping; r++)

@@ -24,7 +24,7 @@
 static void hab_layer_iface_init(OsmGpsMapLayerIface *iface);
 
 enum {
-	P_CALLSIGN = 1,
+	P_STATUS = 1,
 };
 
 G_DEFINE_TYPE_WITH_CODE(hab_layer, hab_layer, G_TYPE_OBJECT,
@@ -32,7 +32,7 @@ G_DEFINE_TYPE_WITH_CODE(hab_layer, hab_layer, G_TYPE_OBJECT,
 
 struct _hab_layer_private
 {
-	char *callsign;
+	char *status;
 };
 
 static void     hab_layer_render (OsmGpsMapLayer *osd, OsmGpsMap *map);
@@ -41,6 +41,7 @@ static gboolean hab_layer_busy   (OsmGpsMapLayer *osd);
 static gboolean hab_layer_press  (OsmGpsMapLayer *osd, OsmGpsMap *map, GdkEventButton *event);
 
 static void scale_draw(hab_layer *self, GtkAllocation *allocation, cairo_t *cr);
+static void status_bar_draw(hab_layer *self, GtkAllocation *allocation, cairo_t *cr);
 
 static void hab_layer_iface_init(OsmGpsMapLayerIface *iface)
 {
@@ -58,8 +59,10 @@ static void hab_layer_set_property(GObject *object, guint prop_id, const GValue 
 	
 	switch(prop_id)
 	{
-	case P_CALLSIGN:
-		priv->callsign = g_value_dup_string(value);
+	case P_STATUS:
+		if(priv->status) g_free(priv->status);
+		if(g_value_get_string(value)) priv->status = g_value_dup_string(value);
+		else priv->status = NULL;
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -75,8 +78,8 @@ static void hab_layer_get_property(GObject *object, guint prop_id, GValue *value
 	
 	switch(prop_id)
 	{
-	case P_CALLSIGN:
-		g_value_set_string(value, priv->callsign);
+	case P_STATUS:
+		g_value_set_string(value, priv->status);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -98,7 +101,7 @@ static void hab_layer_finalize(GObject *object)
 {
 	hab_layer_private *priv = HAB_LAYER(object)->priv;
 	
-	if(priv->callsign) g_free(priv->callsign);
+	if(priv->status) g_free(priv->status);
 	
 	G_OBJECT_CLASS(hab_layer_parent_class)->finalize(object);
 }
@@ -115,10 +118,10 @@ static void hab_layer_class_init(hab_layerClass *klass)
 	object_class->finalize     = hab_layer_finalize;
 	
 	g_object_class_install_property(
-		object_class, P_CALLSIGN,
-		g_param_spec_string("callsign", "callsign",
-			"Just testing", "default",
-			G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY)
+		object_class, P_STATUS,
+		g_param_spec_string("status", "status",
+			"Status bar text", "habhound/alpha",
+			G_PARAM_READWRITE | G_PARAM_CONSTRUCT)
 	);
 }
 
@@ -144,6 +147,7 @@ static void hab_layer_draw(OsmGpsMapLayer *osd, OsmGpsMap *map, GdkDrawable *dra
 	cr = gdk_cairo_create(drawable);
 	
 	scale_draw(self, &allocation, cr);
+	status_bar_draw(self, &allocation, cr);
 	
 	cairo_destroy(cr);
 }	
@@ -179,6 +183,30 @@ static void scale_draw(hab_layer *self, GtkAllocation *allocation, cairo_t *cr)
 		cairo_paint(cr);
 		
 		y += 110;
+	}
+}
+
+static void status_bar_draw(hab_layer *self, GtkAllocation *allocation, cairo_t *cr)
+{
+	hab_layer_private *priv = self->priv;
+	
+	/* Draw the outline box */
+	cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.6);
+	cairo_set_line_width(cr, 0);
+	cairo_rectangle(cr, 0, allocation->height - 14, allocation->width, 14);
+	cairo_fill(cr);
+	
+	/* Draw the payload title */
+	cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+	cairo_select_font_face(cr, "Sans",
+		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+	cairo_set_font_size(cr, 9);
+	
+	/* Draw the status message */
+	if(priv->status)
+	{
+		cairo_move_to(cr, 2, allocation->height - 3);
+		cairo_show_text(cr, priv->status);
 	}
 }
 

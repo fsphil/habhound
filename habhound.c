@@ -29,6 +29,7 @@
 #include "habitat.h"
 
 static OsmGpsMap *map = NULL;
+static OsmGpsMapLayer *osd = NULL;
 
 static GdkPixbuf *g_balloon_blue = NULL;
 static GdkPixbuf *g_radio_green = NULL;
@@ -553,8 +554,6 @@ static void destroy(GtkWidget *widget, gpointer data)
 int main(int argc, char *argv[])
 {
 	GtkWidget *mainwin;
-	//OsmGpsMap *map;
-	OsmGpsMapLayer *osd;
 	src_habitat_t *src_habitat;
 	
 	/* Initialise libraries */
@@ -609,6 +608,7 @@ int main(int argc, char *argv[])
 		"show-gps-in-dpad", FALSE,
 		"show-gps-in-zoom", FALSE,
 		"dpad-radius", 20,
+		"osd-y", 20,
 		NULL);
 	osm_gps_map_layer_add(map, osd);
 	g_object_unref(G_OBJECT(osd));

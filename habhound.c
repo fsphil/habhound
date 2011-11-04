@@ -21,6 +21,7 @@
 #include <gdk/gdkkeysyms.h>
 #include <curl/curl.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
 #include "habhound.h"

@@ -29,14 +29,13 @@ typedef enum {
 extern void habhound_plot_object(
 	const char *callsign,
 	hab_object_type_t type,
+	time_t timestamp,
 	double latitude,
 	double longitude,
 	double altitude
 );
 
 extern int habhound_get_infobox(int index, cairo_surface_t **surface);
-extern void habhound_plot_object(const char *callsign, hab_object_type_t type,
-   double latitude, double longitude, double altitude);
 extern void habhound_delete_object(const char *callsign);
 
 #endif /* __HABHOUND_H__ */

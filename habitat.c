@@ -341,7 +341,7 @@ static void couch_document_callback(src_habitat_t *s, char *str, yajl_val node)
 		type = HAB_CHASE;
 	
 	/* Send it to the map! */
-	habhound_plot_object(callsign, type, lat, lng, alt);
+	habhound_plot_object(callsign, type, time(NULL), lat, lng, alt);
 }
 
 static void couch_changes_callback(src_habitat_t *s, char *str, yajl_val node)

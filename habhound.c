@@ -48,13 +48,12 @@ typedef struct {
 	
 	cairo_surface_t *infobox; /* Also only for balloons */
 	
+	time_t timestamp;
 	double latitude;
 	double longitude;
 	double altitude;
 	
 	double max_altitude;
-	
-	time_t timestamp; /* Time last updated */
 } map_object_t;
 
 static int map_objects_count = 0;
@@ -63,6 +62,7 @@ static map_object_t **map_objects = NULL;
 typedef struct {
 	char *callsign;
 	hab_object_type_t type;
+	time_t timestamp;
 	double latitude;
 	double longitude;
 	double altitude;
@@ -192,7 +192,12 @@ static void render_infobox(map_object_t *obj)
 	
 	/* Print telemetry time */
 	cairo_move_to(cr, 5, 14 + 11);
-	cairo_show_text(cr, "Time: 0000-00-00 00:00:00");
+	if(obj->timestamp)
+	{
+		struct tm tm;
+		strftime(msg, 100, "Time: %Y-%m-%d %H:%M:%S", gmtime_r(&obj->timestamp, &tm));
+		cairo_show_text(cr, msg);
+	}
 	
 	/* Print position */
 	cairo_move_to(cr, 5, 14 + 22);
@@ -297,6 +302,7 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		}
 	}
 	
+	obj->timestamp = data->timestamp;
 	obj->latitude  = data->latitude;
 	obj->longitude = data->longitude;
 	obj->altitude  = data->altitude;
@@ -376,18 +382,19 @@ int habhound_get_infobox(int index, cairo_surface_t **surface)
 }
 
 void habhound_plot_object(const char *callsign, hab_object_type_t type,
-	double latitude, double longitude, double altitude)
+	time_t timestamp, double latitude, double longitude, double altitude)
 {
-	obj_data_t *obj = calloc(sizeof(obj_data_t), 1);
-	if(!obj) return;
+	obj_data_t *data = calloc(sizeof(obj_data_t), 1);
+	if(!data) return;
 	
-	obj->callsign  = strdup(callsign);
-	obj->type      = type;
-	obj->latitude  = latitude;
-	obj->longitude = longitude;
-	obj->altitude  = altitude;
+	data->callsign  = strdup(callsign);
+	data->type      = type;
+	data->timestamp = timestamp;
+	data->latitude  = latitude;
+	data->longitude = longitude;
+	data->altitude  = altitude;
 	
-	g_idle_add((GSourceFunc) cb_habhound_plot_object, obj);
+	g_idle_add((GSourceFunc) cb_habhound_plot_object, data);
 }
 
 void habhound_delete_object(const char *callsign)

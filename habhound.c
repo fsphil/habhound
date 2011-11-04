@@ -38,6 +38,7 @@ typedef struct {
 	const char *callsign;
 	
 	GdkPixbuf *image;
+	GdkPixbuf *mapimage;
 	double x_offset;
 	double y_offset;
 	
@@ -143,6 +144,124 @@ const char *habhound_object_type_name(hab_object_type_t type)
 	}
 	
 	return("unknown");
+}
+
+/* Create a GdkPixbuf from a cairo surface -- based on convert_alpha() from aprsmap */
+static GdkPixbuf *_gdk_pixbuf_new_from_surface(cairo_surface_t *surface)
+{
+	GdkPixbuf *pixbuf;
+	unsigned char *dst_data, *src_data;
+	int dst_stride, src_stride;
+	int width, height;
+	int x, y;
+	
+	/* Get the details of the surface */
+	width      = cairo_image_surface_get_width(surface);
+	height     = cairo_image_surface_get_height(surface);
+	src_data   = cairo_image_surface_get_data(surface);
+	src_stride = cairo_image_surface_get_stride(surface);
+	
+	/* Create the new pixbuf */
+	pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, width, height);
+	if(!pixbuf) return(NULL);
+	
+	/* Get details of the pixbuf */
+	dst_data   = gdk_pixbuf_get_pixels(pixbuf);
+	dst_stride = gdk_pixbuf_get_rowstride(pixbuf);
+	
+	/* Flush any pending drawing bits */
+	cairo_surface_flush(surface);
+	
+	/* Copy the image data */
+	for(y = 0; y < height; y++)
+	{
+		uint32_t *src = (uint32_t *) src_data;
+		
+		for(x = 0; x < width; x++)
+		{
+			unsigned int alpha = src[x] >> 24;
+			
+			if(alpha == 0)
+			{
+				dst_data[x * 4 + 0] = 0;
+				dst_data[x * 4 + 1] = 0;
+				dst_data[x * 4 + 2] = 0;
+			}
+			else
+			{
+				dst_data[x * 4 + 0] = (((src[x] & 0xff0000) >> 16) * 255 + alpha / 2) / alpha;
+				dst_data[x * 4 + 1] = (((src[x] & 0x00ff00) >>  8) * 255 + alpha / 2) / alpha;
+				dst_data[x * 4 + 2] = (((src[x] & 0x0000ff) >>  0) * 255 + alpha / 2) / alpha;
+			}
+			dst_data[x * 4 + 3] = alpha;
+		}
+		src_data += src_stride;
+		dst_data += dst_stride;
+	}
+	
+	return(pixbuf);
+}
+
+static void render_mapimage(map_object_t *obj)
+{
+	cairo_t *cr;
+	cairo_surface_t *surface;
+	cairo_text_extents_t extent;
+	int width, height;
+	
+	/* Get the width and height of the icon */
+	width  = gdk_pixbuf_get_width(obj->image);
+	height = gdk_pixbuf_get_height(obj->image);
+	
+	/* Create a dummy surface, to find the width of the callsign. */
+	/* There must be a handier way of doing this! */
+	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 16, 16);
+	cr = cairo_create(surface);
+	cairo_select_font_face(cr, "Sans",
+		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+	cairo_set_font_size(cr, 8);
+	cairo_text_extents(cr, obj->callsign, &extent);
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
+	
+	/* Adjust the size to fit both the icon and text */
+	if(extent.width > width) width = extent.width;
+	height += extent.height + 2;
+	
+	obj->x_offset -= 0.5;
+	obj->x_offset *= (double) gdk_pixbuf_get_width(obj->image) / width;
+	obj->x_offset += 0.5;
+	obj->y_offset -= (double) (extent.height + 2) / height;
+	
+	/* Create and render the new icon */
+	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+	cr = cairo_create(surface);
+	
+	/* Draw the outline box */
+	//cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+	//cairo_set_line_width(cr, 2);
+	//cairo_rectangle(cr, 0, 0, width, height);
+	//cairo_stroke_preserve(cr);
+	
+	/* Draw the balloon icon */
+	gdk_cairo_set_source_pixbuf(cr, obj->image,
+		(width - gdk_pixbuf_get_width(obj->image)) / 2, 0);
+	cairo_paint(cr);
+	
+	/* Render the callsign */
+	cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+	cairo_select_font_face(cr, "Sans",
+		CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+	cairo_set_font_size(cr, 8);
+	cairo_move_to(cr, (width - extent.width) / 2, height - extent.height / 2 + 2);
+	cairo_show_text(cr, obj->callsign);
+	
+	/* Create the GdkPixbuf from the cairo_surface */
+	obj->mapimage = _gdk_pixbuf_new_from_surface(surface);
+	
+	/* Destroy the surface */
+	cairo_destroy(cr);
+	cairo_surface_destroy(surface);
 }
 
 static void render_infobox(map_object_t *obj)
@@ -270,7 +389,7 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		case HAB_LISTENER:
 			obj->image = g_radio_green;
 			obj->x_offset = 0.5;
-			obj->y_offset = 0.9;
+			obj->y_offset = 1.0;
 			obj->track = NULL;
 			break;
 		case HAB_CHASE:
@@ -283,8 +402,11 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		
 		obj->horizon = NULL;
 		
+		/* Render the map image - icon + callsign */
+		render_mapimage(obj);
+		
 		obj->icon = osm_gps_map_image_add_with_alignment(
-			map, data->latitude, data->longitude, obj->image,
+			map, data->latitude, data->longitude, obj->mapimage,
 			obj->x_offset, obj->y_offset);
 	}
 	else

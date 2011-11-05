@@ -403,6 +403,9 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 	map_object_t *obj;
 	OsmGpsMapPoint coord;
 	
+	habhound_set_status("%s %s at %f,%f altitude %i m",
+		habhound_object_type_name(data->type), data->callsign,
+		data->latitude, data->longitude, (int) data->altitude);
 	fprintf(stderr, "%s %s at %f,%f altitude %.2f\n",
 		habhound_object_type_name(data->type), data->callsign,
 		data->latitude, data->longitude, data->altitude);

@@ -607,6 +607,14 @@ void habhound_delete_object(const char *callsign)
 
 /* internal */
 
+static void on_tiles_queued_changed(OsmGpsMap *map, GParamSpec *pspec, gpointer user_data)
+{
+	int tiles;
+	g_object_get(map, "tiles-queued", &tiles, NULL);
+	if(tiles > 0) habhound_set_status("Downloading map... (%i)", tiles);
+	else habhound_set_status("Map downloaded");
+}
+
 static gboolean key_press_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
 	switch(event->keyval)
@@ -669,6 +677,8 @@ int main(int argc, char *argv[])
 	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_DOWN, GDK_Down);
 	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_LEFT, GDK_Left);
 	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_RIGHT, GDK_Right);
+	
+	g_signal_connect(map, "notify::tiles-queued", G_CALLBACK(on_tiles_queued_changed), NULL);
 	
 	/* Setup key press event */
 	g_signal_connect(mainwin, "key-press-event", G_CALLBACK(key_press_event), NULL);

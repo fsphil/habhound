@@ -159,6 +159,7 @@ static int open_couch_url(src_habitat_t *s, void (*callback)(src_habitat_t *, ch
 	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, strbuf_callback);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, sb);
 	curl_easy_setopt(c, CURLOPT_PRIVATE, sb);
+	curl_easy_setopt(c, CURLOPT_ENCODING, "");
 	curl_multi_add_handle(s->cm, c);
 	s->running++;
 	

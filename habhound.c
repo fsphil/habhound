@@ -342,7 +342,7 @@ static void render_infobox(map_object_t *obj)
 	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 	
 	/* Draw the outline box */
-	cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+	cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.5);
 	cairo_set_line_width(cr, 2);
 	cairo_rectangle(cr, 1, 1, 218, 102);
 	cairo_stroke_preserve(cr);

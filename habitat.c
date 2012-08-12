@@ -269,6 +269,7 @@ static void couch_document_callback(src_habitat_t *s, char *str, yajl_val node)
 	path[1] = (type == HAB_PAYLOAD ? "payload" : "callsign");
 	v = yajl_tree_get(node, path, yajl_t_string);
 	callsign = (v ? YAJL_GET_STRING(v) : NULL);
+	if(!callsign) return;
 	
 	/* Get the latitude */
 	path[1] = "latitude";

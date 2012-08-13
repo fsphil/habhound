@@ -44,6 +44,7 @@ typedef struct {
 	GdkPixbuf *mapimage;
 	double x_offset;
 	double y_offset;
+	gint z_order;
 	
 	OsmGpsMapImage *icon;
 	OsmGpsMapTrack *track;
@@ -456,6 +457,7 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 			obj->image = g_balloon_blue;
 			obj->x_offset = 0.5;
 			obj->y_offset = 0.95;
+			obj->z_order = 2;
 			obj->track = osm_gps_map_track_new();
 			osm_gps_map_track_add(map, obj->track);
 			break;
@@ -463,12 +465,14 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 			obj->image = g_radio_green;
 			obj->x_offset = 0.5;
 			obj->y_offset = 1.0;
+			obj->z_order = 0;
 			obj->track = NULL;
 			break;
 		case HAB_CHASE:
 			obj->image = g_car_red;
 			obj->x_offset = 0.5;
 			obj->y_offset = 0.5;
+			obj->z_order = 1;
 			obj->track = NULL;
 			break;
 		}
@@ -478,9 +482,9 @@ static gboolean cb_habhound_plot_object(obj_data_t *data)
 		/* Render the map image - icon + callsign */
 		render_mapimage(obj);
 		
-		obj->icon = osm_gps_map_image_add_with_alignment(
+		obj->icon = osm_gps_map_image_add_with_alignment_z(
 			map, data->latitude, data->longitude, obj->mapimage,
-			obj->x_offset, obj->y_offset);
+			obj->x_offset, obj->y_offset, obj->z_order);
 	}
 	else
 	{

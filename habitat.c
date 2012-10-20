@@ -261,8 +261,8 @@ static void couch_document_callback(src_habitat_t *s, char *str, yajl_val node)
 	if(type == HAB_PAYLOAD)
 	{
 		path[1] = "_parsed";
-		v = yajl_tree_get(node, path, yajl_t_true);
-		if(!v || !YAJL_IS_TRUE(v)) return;
+		v = yajl_tree_get(node, path, yajl_t_object);
+		if(!v) return; /* Document data has not been parsed */
 	}
 	
 	/* Get the callsign */

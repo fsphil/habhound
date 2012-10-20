@@ -1,11 +1,15 @@
 
 CC=gcc
 CFLAGS=-g -Wall
-LDFLAGS=-g
+LDFLAGS=-g -lpthread -lm
 
 # GLIB
 CFLAGS+=`pkg-config --cflags glib-2.0`
 LDFLAGS+=`pkg-config --libs glib-2.0`
+
+# gthread
+CFLAGS+=`pkg-config --cflags gthread-2.0`
+LDFLAGS+=`pkg-config --libs gthread-2.0`
 
 # GTK
 CFLAGS+=`pkg-config --cflags gtk+-2.0`

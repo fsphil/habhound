@@ -287,7 +287,7 @@ static void couch_document_callback(src_habitat_t *s, char *str, yajl_val node)
 	alt = (v ? YAJL_GET_DOUBLE(v) : 0);
 	
 	/* Listener stations with "chase" in the name get the car icon */
-	if(type == HAB_LISTENER && strcasestr(callsign, "chase"))
+	if(type == HAB_LISTENER && strstr(callsign, "chase"))
 		type = HAB_CHASE;
 	
 	/* Send it to the map! */
@@ -336,6 +336,7 @@ static void couch_initial_callback(src_habitat_t *s, char *str, yajl_val node)
 {
 	const char *path[] = { 0, 0 };
 	yajl_val v;
+	char *vs;
 	int seq;
 	
 	/* Don't proceed if no JSON data present */
@@ -352,7 +353,8 @@ static void couch_initial_callback(src_habitat_t *s, char *str, yajl_val node)
 	
 	path[0] = "db_name";
 	v = yajl_tree_get(node, path, yajl_t_string);
-	if(v) s->db_name = strdup(YAJL_GET_STRING(v));
+	vs = YAJL_GET_STRING(v);
+	if(vs) s->db_name = strdup(vs);
 	else
 	{
 		fprintf(stderr, "No db_name found in response from server\n");

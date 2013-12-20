@@ -661,10 +661,6 @@ int main(int argc, char *argv[])
 	/* Initialise libraries */
 	curl_global_init(CURL_GLOBAL_ALL);
 	
-	g_thread_init(NULL);
-	gdk_threads_init();
-	gdk_threads_enter();
- 	
 	gtk_init(&argc, &argv);
 	
 	/* Create the main window */
@@ -687,11 +683,11 @@ int main(int argc, char *argv[])
 	gtk_widget_show(GTK_WIDGET(map));
 	
 	/* Setup key binding */
-	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_FULLSCREEN, GDK_F11);
-	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_UP, GDK_Up);
-	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_DOWN, GDK_Down);
-	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_LEFT, GDK_Left);
-	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_RIGHT, GDK_Right);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_FULLSCREEN, GDK_KEY_F11);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_UP, GDK_KEY_Up);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_DOWN, GDK_KEY_Down);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_LEFT, GDK_KEY_Left);
+	osm_gps_map_set_keyboard_shortcut(map, OSM_GPS_MAP_KEY_RIGHT, GDK_KEY_Right);
 	
 	g_signal_connect(map, "notify::tiles-queued", G_CALLBACK(on_tiles_queued_changed), NULL);
 	
@@ -739,7 +735,6 @@ int main(int argc, char *argv[])
 	src_habitat_stop(src_habitat);
 	
 	/* Done */
-	gdk_threads_leave();
 	
 	return(0);
 }

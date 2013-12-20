@@ -36,7 +36,7 @@ struct _hab_layer_private
 };
 
 static void     hab_layer_render (OsmGpsMapLayer *osd, OsmGpsMap *map);
-static void     hab_layer_draw   (OsmGpsMapLayer *osd, OsmGpsMap *map, GdkDrawable *drawable);
+static void     hab_layer_draw   (OsmGpsMapLayer *osd, OsmGpsMap *map, cairo_t *cr);
 static gboolean hab_layer_busy   (OsmGpsMapLayer *osd);
 static gboolean hab_layer_press  (OsmGpsMapLayer *osd, OsmGpsMap *map, GdkEventButton *event);
 
@@ -135,21 +135,20 @@ static void hab_layer_render(OsmGpsMapLayer *osd, OsmGpsMap *map)
 	/* No rendering is done here */
 }
 
-static void hab_layer_draw(OsmGpsMapLayer *osd, OsmGpsMap *map, GdkDrawable *drawable)
+static void hab_layer_draw(OsmGpsMapLayer *osd, OsmGpsMap *map, cairo_t *cr)
 {
-	cairo_t *cr;
 	hab_layer *self;
 	GtkAllocation allocation;
 	
 	self = HAB_LAYER(osd);
 	
 	gtk_widget_get_allocation(GTK_WIDGET(map), &allocation);
-	cr = gdk_cairo_create(drawable);
+	//cr = gdk_cairo_create(drawable);
 	
 	scale_draw(self, &allocation, cr);
 	status_bar_draw(self, &allocation, cr);
 	
-	cairo_destroy(cr);
+	//cairo_destroy(cr);
 }	
 
 static gboolean hab_layer_busy(OsmGpsMapLayer *osd)
